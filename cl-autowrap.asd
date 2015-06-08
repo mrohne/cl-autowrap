@@ -3,6 +3,9 @@
 
 (in-package :cl-autowrap.asdf)
 
+(eval-when (:execute :compile-toplevel :load-toplevel)
+  (proclaim '(optimize (debug 3) (safety 3) (space 0) (speed 0))))
+
 (defsystem :cl-autowrap
   :description "Import c2ffi specs and generate CFFI wrappers"
   :author "Ryan Pavlik"
