@@ -362,6 +362,35 @@ used exactly."
                        :name name
                        :type (ensure-type type "alias of type ~S to ~S" type name)))))
 
+(defgeneric parse-foreign-field (name type)
+  (:documentation "Return list of one or more FOREIGN-FIELD instances"))
+(defmethod parse-foreign-field (name spec)
+  (let ((type (ensure-type spec "due to parameter ~S of type ~S" name spec)))
+    (if (typep type 'foreign-type)
+	(parse-foreign-field name type)
+	(list (make-instance 'foreign-field :name name :type type)))))
+(defmethod parse-foreign-field (name (type foreign-alias))
+  (parse-foreign-field name (basic-foreign-type type)))
+(defmethod parse-foreign-field (name (type foreign-type))
+  (list (make-instance 'foreign-field :name name :type type)))
+#+(and sbcl x86-64)
+(defmethod parse-foreign-field (name (type foreign-record))
+  (unless *mute-reporting-p*
+    (format *error-output* "~&;; flatten field ~s ~s~%" name (foreign-type-name type)))
+  (loop
+     for subspec in (foreign-record-fields type)
+     for subname = (intern (string+ name "." (foreign-type-name subspec)) (symbol-package name))
+     for subtype = (foreign-type subspec)
+     unless (foreign-scalar-p subtype) do
+       (unless *mute-reporting-p*
+	 (format *error-output* ";; nested field ~s ~s~%" 
+		 subname (foreign-type-name subtype)))
+       (return (list (make-instance 'foreign-field :name name :type type)))
+     do (unless *mute-reporting-p*
+	  (format *error-output* ";; added field ~s ~s~%"
+		  subname (foreign-type-name subtype)))
+     collect (make-instance 'foreign-field :name subname :type subtype)))
+
 (defun define-foreign-function (name-and-options return-type params)
   "=> FOREIGN-FUNCTION
 
@@ -379,10 +408,9 @@ call it.  "
                                  :type return-type
                                  :variadic-p variadic-p)))
         (setf (foreign-record-fields fun)
-              (loop for param in params
-                 collect (make-instance 'foreign-field :name (car param)
-                                        :type (ensure-type (cadr param) "function ~S (nee ~S) due to parameter ~S of type ~S"
-                                                           name c-symbol (car param) (cadr param)))))
+              (loop 
+		 for (argname argspec) in params
+		 nconc (parse-foreign-field argname argspec)))
         (setf (gethash name *foreign-functions*) fun)))))
 
 (defun parse-one-field (record-type record-type-name pre-offset
