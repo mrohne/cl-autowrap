@@ -978,12 +978,13 @@ types."
             `(progn ,@(nreverse *accessor-forms*))))))))
 
 (defmacro define-wrapper (type &optional (package *package*))
-  (let* ((*package* package)
-         (type (etypecase type
-                 (foreign-type type)
-                 ((or symbol cons) (require-type-no-context type))))
-         (name (foreign-type-name type)))
-    `(define-wrapper* ,type ,name)))
+  (with-wrap-attempt ("lisp structure for foreign structure ~S" type) type
+    (let* ((*package* package)
+	   (type (etypecase type
+		   (foreign-type type)
+		   ((or symbol cons) (require-type-no-context type))))
+	   (name (foreign-type-name type)))
+      `(define-wrapper* ,type ,name))))
 
 (defmacro define-wrapper* (type wrapper-name &key constructor conc-name)
   (with-wrap-attempt ("lisp structure for foreign structure ~S" type) type
